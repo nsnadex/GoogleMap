@@ -133,12 +133,23 @@ private fun StreetViewMainContent(
 
     var streetViewPanorama by remember { mutableStateOf<StreetViewPanorama?>(null) }
     var panoramaAvailable by remember { mutableStateOf(true) }
-    var statusText by remember { mutableStateOf("ストリートビュー読み込み中...") }
+    var statusText by remember { mutableStateOf("最寄りのストリートビューを検索中...") }
     var lastSetPosition by remember { mutableStateOf<LatLng?>(null) }
+    var fallbackSearchAttempted by remember { mutableStateOf(false) }
 
     val streetViewPanoramaView = remember {
         StreetViewPanoramaView(context).apply {
             onCreate(Bundle())
+        }
+    }
+
+    // 最寄りのパノラマを検索（半径 500m / 1000m に拡張）
+    fun setPositionToNearestPanorama(targetLatLng: LatLng, radius: Int = 500) {
+        val panorama = streetViewPanorama
+        if (panorama != null) {
+            lastSetPosition = targetLatLng
+            // 屋外・一般道路優先で広範囲（500m〜1000m）から一番近いパノラマを検索
+            panorama.setPosition(targetLatLng, radius, StreetViewSource.OUTDOOR)
         }
     }
 
@@ -147,13 +158,13 @@ private fun StreetViewMainContent(
         isTrackingEnabled = true
         selectedHistoricalInfo = null
         isGestureCooldownActive = true
+        fallbackSearchAttempted = false
 
         val loc = currentLocation
         val panorama = streetViewPanorama
         if (loc != null && panorama != null) {
             val targetLatLng = LatLng(loc.latitude, loc.longitude)
-            lastSetPosition = targetLatLng
-            panorama.setPosition(targetLatLng, 100, StreetViewSource.DEFAULT)
+            setPositionToNearestPanorama(targetLatLng, radius = 500)
 
             val updatedCamera = StreetViewPanoramaCamera.Builder(panorama.panoramaCamera)
                 .bearing(bearing)
@@ -207,21 +218,28 @@ private fun StreetViewMainContent(
                 requestCount++
                 if (location != null && location.links != null && location.links.isNotEmpty()) {
                     panoramaAvailable = true
+                    fallbackSearchAttempted = false
                     statusText = if (selectedHistoricalInfo != null) {
                         "過去画像表示中 (${selectedHistoricalInfo?.dateText})"
                     } else if (isTrackingEnabled) {
-                        "連動中"
+                        "連動中（最寄りのストリートビュー）"
                     } else {
                         "手動操作中（連動停止中）"
                     }
                 } else {
-                    panoramaAvailable = false
-                    statusText = "100m以内に画像がありません"
+                    // 500m検索でヒットしなかった場合、最大 1000m (1km) に拡大して再試行（フォールバック検索）
+                    if (!fallbackSearchAttempted && lastSetPosition != null) {
+                        fallbackSearchAttempted = true
+                        panorama.setPosition(lastSetPosition!!, 1000, StreetViewSource.DEFAULT)
+                    } else {
+                        panoramaAvailable = false
+                        statusText = "1km以内に最寄りのストリートビューがありません"
+                    }
                 }
             }
 
             val defaultLatLng = LatLng(35.681236, 139.767125)
-            panorama.setPosition(defaultLatLng, 100, StreetViewSource.DEFAULT)
+            setPositionToNearestPanorama(defaultLatLng, radius = 500)
         }
     }
 
@@ -238,15 +256,14 @@ private fun StreetViewMainContent(
         }
     }
 
-    // GPS移動時の自動更新
+    // GPS移動時の自動更新（過去モード時・連動OFF時は更新しない）
     LaunchedEffect(currentLocation, streetViewPanorama, isTrackingEnabled, selectedHistoricalInfo) {
         val loc = currentLocation
         val panorama = streetViewPanorama
         if (isTrackingEnabled && selectedHistoricalInfo == null && loc != null && panorama != null) {
             val newLatLng = LatLng(loc.latitude, loc.longitude)
-            if (lastSetPosition == null || distanceBetween(lastSetPosition!!, newLatLng) > 2.0) {
-                lastSetPosition = newLatLng
-                panorama.setPosition(newLatLng, 100, StreetViewSource.DEFAULT)
+            if (lastSetPosition == null || distanceBetween(lastSetPosition!!, newLatLng) > 3.0) {
+                setPositionToNearestPanorama(newLatLng, radius = 500)
             }
         }
     }
@@ -288,13 +305,13 @@ private fun StreetViewMainContent(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "現在地の周辺（100m以内）にストリートビュー画像が存在しません。",
+                        text = "最寄りの道路（1km以内）にストリートビューが見つかりませんでした。",
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "公道や屋外に移動すると自動的に読み込まれます。",
+                        text = "公道付近に移動すると自動的に読み込まれます。",
                         color = Color.Yellow,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -459,7 +476,7 @@ private fun StreetViewMainContent(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
                         ) {
-                            Text(text = "📍 最新位置へ戻る", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "📍 最寄りの場所へ連動", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -468,8 +485,8 @@ private fun StreetViewMainContent(
                         onClick = {
                             coroutineScope.launch {
                                 isSearchingHistorical = true
-                                Toast.makeText(context, "現在地の過去パノラマ（Pano ID）を検索中...", Toast.LENGTH_SHORT).show()
-                                val info = HistoricalPanoHelper.fetchOldestPanoInfo(lat, lng)
+                                Toast.makeText(context, "最寄りの過去パノラマ（Pano ID）を検索中...", Toast.LENGTH_SHORT).show()
+                                val info = HistoricalPanoHelper.fetchOldestPanoInfo(context, lat, lng)
                                 isSearchingHistorical = false
                                 if (info != null) {
                                     selectedHistoricalInfo = info
@@ -481,14 +498,18 @@ private fun StreetViewMainContent(
                             }
                         },
                         enabled = !isSearchingHistorical,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7B1FA2)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF673AB7), // 視認性の高いディープパープル
+                            contentColor = Color.White        // くっきり見やすい白色テキスト
+                        ),
                         modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp)
                     ) {
                         Text(
-                            text = if (isSearchingHistorical) "検索中..." else "📜 過去(最古)ストリートビューを表示",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            text = if (isSearchingHistorical) "⏳ 過去データを検索中..." else "📜 過去(最古)ストリートビューを表示",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                 }
@@ -501,7 +522,7 @@ private fun StreetViewMainContent(
                     text = "連動モード: " + if (selectedHistoricalInfo != null) {
                         "📜 過去写真モード (${selectedHistoricalInfo?.dateText})"
                     } else if (isTrackingEnabled) {
-                        "🔴 センサー連動中"
+                        "🔴 センサー連動中 (最寄り自動検索)"
                     } else {
                         "⏸️ 手動操作中（連動停止中）"
                     },

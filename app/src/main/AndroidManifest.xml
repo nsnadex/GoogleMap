@@ -15,10 +15,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GoogleMap">
 
-        <!-- Google Maps API Key: ここにご自身の API Key を記述してください -->
+        <!-- Google Maps API Key: local.properties から自動注入されます -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAN7yKcnsji2i5WX0c8KJg9ahAFqJ26R_g" />
+            android:value="${MAPS_API_KEY}" />
 
         <activity
             android:name=".MainActivity"
