@@ -2,7 +2,13 @@ package nsnade.ssss.googlemap
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.net.Uri
 import android.os.Bundle
 import android.view.MotionEvent
 import android.widget.Toast
@@ -12,6 +18,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,9 +37,15 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.StreetViewPanorama
 import com.google.android.gms.maps.StreetViewPanoramaView
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.StreetViewPanoramaCamera
 import com.google.android.gms.maps.model.StreetViewSource
 import kotlinx.coroutines.delay
@@ -119,12 +132,11 @@ private fun StreetViewMainContent(
     val currentLocation by locationHelper.locationState.collectAsState()
 
     var showMenuPanel by remember { mutableStateOf(false) }
+    var showMinimap by remember { mutableStateOf(true) }
     var requestCount by remember { mutableStateOf(0) }
 
     // センサー自動連動の状態管理
     var isTrackingEnabled by remember { mutableStateOf(true) }
-    
-    // 再開直後の誤判定を防ぐガード（1秒間のクールダウン）
     var isGestureCooldownActive by remember { mutableStateOf(false) }
 
     // 過去画像情報
@@ -133,9 +145,12 @@ private fun StreetViewMainContent(
 
     var streetViewPanorama by remember { mutableStateOf<StreetViewPanorama?>(null) }
     var panoramaAvailable by remember { mutableStateOf(true) }
-    var statusText by remember { mutableStateOf("最寄りのストリートビューを検索中...") }
+    var statusText by remember { mutableStateOf("ストリートビュー読み込み中...") }
     var lastSetPosition by remember { mutableStateOf<LatLng?>(null) }
-    var fallbackSearchAttempted by remember { mutableStateOf(false) }
+
+    // 2D ミニマップ用の状態
+    var googleMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
+    var minimapMarker by remember { mutableStateOf<Marker?>(null) }
 
     val streetViewPanoramaView = remember {
         StreetViewPanoramaView(context).apply {
@@ -143,13 +158,29 @@ private fun StreetViewMainContent(
         }
     }
 
-    // 最寄りのパノラマを検索（半径 500m / 1000m に拡張）
-    fun setPositionToNearestPanorama(targetLatLng: LatLng, radius: Int = 500) {
-        val panorama = streetViewPanorama
-        if (panorama != null) {
-            lastSetPosition = targetLatLng
-            // 屋外・一般道路優先で広範囲（500m〜1000m）から一番近いパノラマを検索
-            panorama.setPosition(targetLatLng, radius, StreetViewSource.OUTDOOR)
+    val minimapView = remember {
+        MapView(context).apply {
+            onCreate(Bundle())
+        }
+    }
+
+    // Google Maps アプリを現在地指定で開くヘルパー関数
+    fun openGoogleMapsApp() {
+        val lat = currentLocation?.latitude ?: 35.681236
+        val lng = currentLocation?.longitude ?: 139.767125
+        try {
+            val gmmIntentUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(現在地)")
+            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
+                setPackage("com.google.android.apps.maps")
+            }
+            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(mapIntent)
+            } else {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                context.startActivity(fallbackIntent)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Google Maps アプリの起動に失敗しました", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -158,13 +189,13 @@ private fun StreetViewMainContent(
         isTrackingEnabled = true
         selectedHistoricalInfo = null
         isGestureCooldownActive = true
-        fallbackSearchAttempted = false
 
         val loc = currentLocation
         val panorama = streetViewPanorama
         if (loc != null && panorama != null) {
             val targetLatLng = LatLng(loc.latitude, loc.longitude)
-            setPositionToNearestPanorama(targetLatLng, radius = 500)
+            lastSetPosition = targetLatLng
+            panorama.setPosition(targetLatLng, 500, StreetViewSource.OUTDOOR)
 
             val updatedCamera = StreetViewPanoramaCamera.Builder(panorama.panoramaCamera)
                 .bearing(bearing)
@@ -179,13 +210,17 @@ private fun StreetViewMainContent(
         }
     }
 
-    // ライフサイクルの完全転送
-    DisposableEffect(lifecycleOwner, streetViewPanoramaView) {
+    // ライフサイクルの完全転送 (StreetView ＆ MiniMap)
+    DisposableEffect(lifecycleOwner, streetViewPanoramaView, minimapView) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> streetViewPanoramaView.onStart()
+                Lifecycle.Event.ON_START -> {
+                    streetViewPanoramaView.onStart()
+                    minimapView.onStart()
+                }
                 Lifecycle.Event.ON_RESUME -> {
                     streetViewPanoramaView.onResume()
+                    minimapView.onResume()
                     sensorHelper.startListening()
                     locationHelper.startLocationUpdates()
                 }
@@ -193,9 +228,16 @@ private fun StreetViewMainContent(
                     sensorHelper.stopListening()
                     locationHelper.stopLocationUpdates()
                     streetViewPanoramaView.onPause()
+                    minimapView.onPause()
                 }
-                Lifecycle.Event.ON_STOP -> streetViewPanoramaView.onStop()
-                Lifecycle.Event.ON_DESTROY -> streetViewPanoramaView.onDestroy()
+                Lifecycle.Event.ON_STOP -> {
+                    streetViewPanoramaView.onStop()
+                    minimapView.onStop()
+                }
+                Lifecycle.Event.ON_DESTROY -> {
+                    streetViewPanoramaView.onDestroy()
+                    minimapView.onDestroy()
+                }
                 else -> {}
             }
         }
@@ -207,7 +249,7 @@ private fun StreetViewMainContent(
         }
     }
 
-    // Native SDK 非同期準備
+    // Native StreetView 非同期準備
     LaunchedEffect(streetViewPanoramaView) {
         streetViewPanoramaView.getStreetViewPanoramaAsync { panorama ->
             streetViewPanorama = panorama
@@ -218,32 +260,51 @@ private fun StreetViewMainContent(
                 requestCount++
                 if (location != null && location.links != null && location.links.isNotEmpty()) {
                     panoramaAvailable = true
-                    fallbackSearchAttempted = false
                     statusText = if (selectedHistoricalInfo != null) {
                         "過去画像表示中 (${selectedHistoricalInfo?.dateText})"
                     } else if (isTrackingEnabled) {
-                        "連動中（最寄りのストリートビュー）"
+                        "連動中"
                     } else {
                         "手動操作中（連動停止中）"
                     }
                 } else {
-                    // 500m検索でヒットしなかった場合、最大 1000m (1km) に拡大して再試行（フォールバック検索）
-                    if (!fallbackSearchAttempted && lastSetPosition != null) {
-                        fallbackSearchAttempted = true
-                        panorama.setPosition(lastSetPosition!!, 1000, StreetViewSource.DEFAULT)
-                    } else {
-                        panoramaAvailable = false
-                        statusText = "1km以内に最寄りのストリートビューがありません"
-                    }
+                    panoramaAvailable = false
+                    statusText = "1km以内に最寄りの画像がありません"
                 }
             }
 
             val defaultLatLng = LatLng(35.681236, 139.767125)
-            setPositionToNearestPanorama(defaultLatLng, radius = 500)
+            panorama.setPosition(defaultLatLng, 500, StreetViewSource.OUTDOOR)
         }
     }
 
-    // タッチイベントの監視
+    // 2D ミニマップ 非同期準備
+    LaunchedEffect(minimapView) {
+        minimapView.getMapAsync { map ->
+            googleMapInstance = map
+            map.uiSettings.apply {
+                isZoomControlsEnabled = false
+                isCompassEnabled = false
+                isMapToolbarEnabled = false
+                isMyLocationButtonEnabled = false
+            }
+            map.setOnMapClickListener {
+                openGoogleMapsApp()
+            }
+            val defaultLatLng = LatLng(35.681236, 139.767125)
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLatLng, 16.5f))
+
+            val arrowBitmap = createDirectionArrowBitmap()
+            val markerOptions = MarkerOptions()
+                .position(defaultLatLng)
+                .icon(BitmapDescriptorFactory.fromBitmap(arrowBitmap))
+                .anchor(0.5f, 0.5f)
+                .flat(true)
+            minimapMarker = map.addMarker(markerOptions)
+        }
+    }
+
+    // タッチイベントの監視（ネイティブView透過）
     DisposableEffect(streetViewPanoramaView, isTrackingEnabled, isGestureCooldownActive) {
         streetViewPanoramaView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_MOVE && isTrackingEnabled && !isGestureCooldownActive) {
@@ -256,20 +317,29 @@ private fun StreetViewMainContent(
         }
     }
 
-    // GPS移動時の自動更新（過去モード時・連動OFF時は更新しない）
-    LaunchedEffect(currentLocation, streetViewPanorama, isTrackingEnabled, selectedHistoricalInfo) {
+    // GPS位置更新時の連動 (StreetView ＆ MiniMap)
+    LaunchedEffect(currentLocation, streetViewPanorama, googleMapInstance, minimapMarker, isTrackingEnabled, selectedHistoricalInfo) {
         val loc = currentLocation
-        val panorama = streetViewPanorama
-        if (isTrackingEnabled && selectedHistoricalInfo == null && loc != null && panorama != null) {
+        if (loc != null) {
             val newLatLng = LatLng(loc.latitude, loc.longitude)
-            if (lastSetPosition == null || distanceBetween(lastSetPosition!!, newLatLng) > 3.0) {
-                setPositionToNearestPanorama(newLatLng, radius = 500)
+
+            googleMapInstance?.moveCamera(CameraUpdateFactory.newLatLng(newLatLng))
+            minimapMarker?.position = newLatLng
+
+            val panorama = streetViewPanorama
+            if (isTrackingEnabled && selectedHistoricalInfo == null && panorama != null) {
+                if (lastSetPosition == null || distanceBetween(lastSetPosition!!, newLatLng) > 2.0) {
+                    lastSetPosition = newLatLng
+                    panorama.setPosition(newLatLng, 500, StreetViewSource.OUTDOOR)
+                }
             }
         }
     }
 
-    // 方位・仰俯角のセンサー連動
-    LaunchedEffect(bearing, tilt, streetViewPanorama, isTrackingEnabled) {
+    // 方位・仰俯角の連動
+    LaunchedEffect(bearing, tilt, streetViewPanorama, minimapMarker, isTrackingEnabled) {
+        minimapMarker?.rotation = bearing
+
         val panorama = streetViewPanorama
         if (isTrackingEnabled && panorama != null) {
             val currentCamera = panorama.panoramaCamera
@@ -343,7 +413,37 @@ private fun StreetViewMainContent(
             }
         }
 
-        // 上部コントロールバー
+        // 右下: 2D ミニマップ（タップで Google Maps アプリ起動）
+        AnimatedVisibility(
+            visible = showMinimap,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = if (showMenuPanel) 230.dp else 24.dp, end = 16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(140.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.Black)
+                    .border(2.5.dp, Color.Yellow, RoundedCornerShape(18.dp))
+                    .clickable { openGoogleMapsApp() }
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { minimapView }
+                )
+                // タップで外部Mapアプリ起動用のオーバーレイエリア
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { openGoogleMapsApp() }
+                )
+            }
+        }
+
+        // 上部コントロールバー（設定ボタン・連動再開ボタン）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -469,48 +569,70 @@ private fun StreetViewMainContent(
                             )
                         }
 
-                        // ② 現在地に戻るボタン
+                        // ② ミニマップ表示ON/OFF切り替えボタン
+                        Button(
+                            onClick = { showMinimap = !showMinimap },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (showMinimap) Color(0xFF1565C0) else Color(0xFF616161)
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = if (showMinimap) "🗺️ ミニマップ: ON" else "🗺️ ミニマップ: OFF",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // ③ 最新位置へ戻るボタン
                         Button(
                             onClick = { resumeTrackingWithCooldown() },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
                         ) {
-                            Text(text = "📍 最寄りの場所へ連動", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "📍 最新位置へ戻る", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
-                    }
 
-                    // ③ 過去（最古）の Pano ID 検索＆表示ボタン
-                    Button(
-                        onClick = {
-                            coroutineScope.launch {
-                                isSearchingHistorical = true
-                                Toast.makeText(context, "最寄りの過去パノラマ（Pano ID）を検索中...", Toast.LENGTH_SHORT).show()
-                                val info = HistoricalPanoHelper.fetchOldestPanoInfo(context, lat, lng)
-                                isSearchingHistorical = false
-                                if (info != null) {
-                                    selectedHistoricalInfo = info
-                                    streetViewPanorama?.setPosition(info.panoId)
-                                    Toast.makeText(context, "過去の画像を表示しました: ${info.dateText}", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, "この場所には過去の撮影データが見つかりませんでした", Toast.LENGTH_SHORT).show()
+                        // ④ 過去（最古）の Pano ID 検索＆表示ボタン
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isSearchingHistorical = true
+                                    Toast.makeText(context, "最寄りの過去パノラマ（Pano ID）を検索中...", Toast.LENGTH_SHORT).show()
+                                    val info = HistoricalPanoHelper.fetchOldestPanoInfo(context, lat, lng)
+                                    isSearchingHistorical = false
+                                    if (info != null) {
+                                        selectedHistoricalInfo = info
+                                        streetViewPanorama?.setPosition(info.panoId)
+                                        Toast.makeText(context, "過去の画像を表示しました: ${info.dateText}", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "この場所には過去の撮影データが見つかりませんでした", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
-                            }
-                        },
-                        enabled = !isSearchingHistorical,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF673AB7), // 視認性の高いディープパープル
-                            contentColor = Color.White        // くっきり見やすい白色テキスト
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp)
-                    ) {
-                        Text(
-                            text = if (isSearchingHistorical) "⏳ 過去データを検索中..." else "📜 過去(最古)ストリートビューを表示",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                            },
+                            enabled = !isSearchingHistorical,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF673AB7),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = if (isSearchingHistorical) "⏳ 検索中..." else "📜 過去(最古)画像",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
 
@@ -522,7 +644,7 @@ private fun StreetViewMainContent(
                     text = "連動モード: " + if (selectedHistoricalInfo != null) {
                         "📜 過去写真モード (${selectedHistoricalInfo?.dateText})"
                     } else if (isTrackingEnabled) {
-                        "🔴 センサー連動中 (最寄り自動検索)"
+                        "🔴 センサー連動中"
                     } else {
                         "⏸️ 手動操作中（連動停止中）"
                     },
@@ -551,6 +673,35 @@ private fun StreetViewMainContent(
             }
         }
     }
+}
+
+private fun createDirectionArrowBitmap(): Bitmap {
+    val size = 72
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+
+    val bgPaint = Paint().apply {
+        color = android.graphics.Color.parseColor("#E6000000")
+        isAntiAlias = true
+    }
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, bgPaint)
+
+    val arrowPaint = Paint().apply {
+        color = android.graphics.Color.parseColor("#00E676")
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
+    val path = Path().apply {
+        moveTo(size / 2f, 10f)
+        lineTo(size - 16f, size - 14f)
+        lineTo(size / 2f, size - 24f)
+        lineTo(16f, size - 14f)
+        close()
+    }
+    canvas.drawPath(path, arrowPaint)
+
+    return bitmap
 }
 
 private fun distanceBetween(point1: LatLng, point2: LatLng): Float {
