@@ -21,6 +21,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -139,8 +141,9 @@ private fun StreetViewMainContent(
     var isTrackingEnabled by remember { mutableStateOf(true) }
     var isGestureCooldownActive by remember { mutableStateOf(false) }
 
-    // 過去画像情報
+    // 全年代の過去パノラマ情報リスト
     var selectedHistoricalInfo by remember { mutableStateOf<PanoInfo?>(null) }
+    var panoHistoryList by remember { mutableStateOf<List<PanoInfo>>(emptyList()) }
     var isSearchingHistorical by remember { mutableStateOf(false) }
 
     var streetViewPanorama by remember { mutableStateOf<StreetViewPanorama?>(null) }
@@ -304,7 +307,7 @@ private fun StreetViewMainContent(
         }
     }
 
-    // タッチイベントの監視（ネイティブView透過）
+    // タッチイベントの監視
     DisposableEffect(streetViewPanoramaView, isTrackingEnabled, isGestureCooldownActive) {
         streetViewPanoramaView.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_MOVE && isTrackingEnabled && !isGestureCooldownActive) {
@@ -317,7 +320,7 @@ private fun StreetViewMainContent(
         }
     }
 
-    // GPS位置更新時の連動 (StreetView ＆ MiniMap)
+    // GPS位置更新時の連動
     LaunchedEffect(currentLocation, streetViewPanorama, googleMapInstance, minimapMarker, isTrackingEnabled, selectedHistoricalInfo) {
         val loc = currentLocation
         if (loc != null) {
@@ -413,18 +416,18 @@ private fun StreetViewMainContent(
             }
         }
 
-        // 右下: 2D ミニマップ（タップで Google Maps アプリ起動）
+        // 右下: 2D ミニマップ
         AnimatedVisibility(
             visible = showMinimap,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = if (showMenuPanel) 230.dp else 24.dp, end = 16.dp)
+                .padding(bottom = if (showMenuPanel) 290.dp else 24.dp, end = 16.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(140.dp)
+                    .size(130.dp)
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color.Black)
                     .border(2.5.dp, Color.Yellow, RoundedCornerShape(18.dp))
@@ -434,7 +437,6 @@ private fun StreetViewMainContent(
                     modifier = Modifier.fillMaxSize(),
                     factory = { minimapView }
                 )
-                // タップで外部Mapアプリ起動用のオーバーレイエリア
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -443,7 +445,7 @@ private fun StreetViewMainContent(
             }
         }
 
-        // 上部コントロールバー（設定ボタン・連動再開ボタン）
+        // 上部コントロールバー
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -492,7 +494,7 @@ private fun StreetViewMainContent(
             }
         }
 
-        // 設定＆ステータスパネル
+        // 設定＆全年代タイムスリップ・ステータスパネル
         AnimatedVisibility(
             visible = showMenuPanel,
             enter = fadeIn(),
@@ -505,7 +507,7 @@ private fun StreetViewMainContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.9f))
+                    .background(Color.Black.copy(alpha = 0.92f))
                     .padding(16.dp)
             ) {
                 Row(
@@ -601,18 +603,18 @@ private fun StreetViewMainContent(
                             Text(text = "📍 最新位置へ戻る", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        // ④ 過去（最古）の Pano ID 検索＆表示ボタン
+                        // ④ 過去年代の全探索ボタン
                         Button(
                             onClick = {
                                 coroutineScope.launch {
                                     isSearchingHistorical = true
-                                    Toast.makeText(context, "最寄りの過去パノラマ（Pano ID）を検索中...", Toast.LENGTH_SHORT).show()
-                                    val info = HistoricalPanoHelper.fetchOldestPanoInfo(context, lat, lng)
+                                    Toast.makeText(context, "現在地の全過去年代データを検索中...", Toast.LENGTH_SHORT).show()
+                                    val currentPanoId = streetViewPanorama?.location?.panoId
+                                    val history = HistoricalPanoHelper.fetchAllPanoHistory(context, lat, lng, currentPanoId)
                                     isSearchingHistorical = false
-                                    if (info != null) {
-                                        selectedHistoricalInfo = info
-                                        streetViewPanorama?.setPosition(info.panoId)
-                                        Toast.makeText(context, "過去の画像を表示しました: ${info.dateText}", Toast.LENGTH_LONG).show()
+                                    panoHistoryList = history
+                                    if (history.isNotEmpty()) {
+                                        Toast.makeText(context, "${history.size}件の撮影年代データが見つかりました！", Toast.LENGTH_LONG).show()
                                     } else {
                                         Toast.makeText(context, "この場所には過去の撮影データが見つかりませんでした", Toast.LENGTH_SHORT).show()
                                     }
@@ -627,10 +629,51 @@ private fun StreetViewMainContent(
                             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
                         ) {
                             Text(
-                                text = if (isSearchingHistorical) "⏳ 検索中..." else "📜 過去(最古)画像",
+                                text = if (isSearchingHistorical) "⏳ 検索中..." else "📜 過去年代を検索",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                // 全過去年代選択スライダー・チップ列（PC版タイムマシン機能）
+                if (panoHistoryList.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "📜 撮影年代を選択 (全${panoHistoryList.size}件):",
+                        color = Color.Yellow,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(panoHistoryList) { info ->
+                            val isSelected = selectedHistoricalInfo?.panoId == info.panoId
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedHistoricalInfo = info
+                                    streetViewPanorama?.setPosition(info.panoId)
+                                    Toast.makeText(context, "${info.dateText} のストリートビューに切り替えました", Toast.LENGTH_SHORT).show()
+                                },
+                                label = {
+                                    Text(
+                                        text = info.dateText,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.Black else Color.White
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = Color(0xFF424242),
+                                    selectedContainerColor = Color(0xFFFF9800)
+                                )
                             )
                         }
                     }

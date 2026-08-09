@@ -17,47 +17,102 @@ data class PanoInfo(
 object HistoricalPanoHelper {
 
     /**
-     * 現在地の周辺（半径500m以内）にある最寄りの過去パノラマ情報を自動検索し、
-     * 最も古い撮影日の PanoInfo (panoId, dateText) を返します。
+     * 現在地または指定された panoId から、すべての過去撮影年代の PanoInfo リストを取得します。
+     * 日付昇順（最古 -> 最新）でソートして返します。
      */
-    suspend fun fetchOldestPanoInfo(context: Context, latitude: Double, longitude: Double): PanoInfo? = withContext(Dispatchers.IO) {
+    suspend fun fetchAllPanoHistory(
+        context: Context,
+        latitude: Double,
+        longitude: Double,
+        currentPanoId: String? = null
+    ): List<PanoInfo> = withContext(Dispatchers.IO) {
         val apiKey = getApiKeyFromManifest(context)
-        
-        // 1. Google Official Street View Metadata API (radius=500m) による最寄り検索
-        if (!apiKey.isNullOrEmpty() && apiKey != "YOUR_API_KEY_HERE") {
-            val officialPano = fetchFromOfficialMetadataApi(latitude, longitude, apiKey)
-            if (officialPano != null) {
-                return@withContext officialPano
-            }
+        val allCandidatePanos = mutableListOf<PanoInfo>()
+
+        // 1. Pano ID が直接指定されている場合、Pano ID 直接クエリで CBK を検索（最も確実）
+        if (!currentPanoId.isNullOrEmpty()) {
+            val panosFromPanoId = fetchFromCbkApiByPanoId(currentPanoId)
+            allCandidatePanos.addAll(panosFromPanoId)
         }
 
-        // 2. 広域グリッド探索（現在地および周辺100m以内の5地点を走査）
+        // 2. Official Metadata API で最寄りパノラマの Pano ID と正確な座標を取得
+        val (exactLat, exactLng, metaPanoId) = if (!apiKey.isNullOrEmpty() && apiKey != "YOUR_API_KEY_HERE") {
+            fetchLocationFromOfficialMetadataApi(latitude, longitude, apiKey)
+        } else {
+            Triple(latitude, longitude, null)
+        }
+
+        if (!metaPanoId.isNullOrEmpty()) {
+            val panosFromMetaPanoId = fetchFromCbkApiByPanoId(metaPanoId)
+            allCandidatePanos.addAll(panosFromMetaPanoId)
+        }
+
+        // 3. 座標指定による CBK 検索（フォールバック）
+        val searchLat = exactLat ?: latitude
+        val searchLng = exactLng ?: longitude
         val offsets = listOf(
             Pair(0.0, 0.0),
-            Pair(0.0005, 0.0005),   // 約50m北東
-            Pair(-0.0005, -0.0005), // 約50m南西
-            Pair(0.0008, -0.0008), // 約80m北西
-            Pair(-0.0008, 0.0008)  // 約80m南東
+            Pair(0.0003, 0.0003),
+            Pair(-0.0003, -0.0003),
+            Pair(0.0005, -0.0005),
+            Pair(-0.0005, 0.0005)
         )
 
-        val candidates = mutableListOf<PanoInfo>()
-
         for (offset in offsets) {
-            val searchLat = latitude + offset.first
-            val searchLng = longitude + offset.second
-            val pano = fetchFromCbkApi(searchLat, searchLng)
-            if (pano != null) {
-                candidates.add(pano)
-            }
+            val lat = searchLat + offset.first
+            val lng = searchLng + offset.second
+            val panos = fetchAllFromCbkApiByLatLng(lat, lng)
+            allCandidatePanos.addAll(panos)
         }
 
-        // 日付順にソート（最も古い日付のパノラマを選択）
-        return@withContext candidates.distinctBy { it.panoId }.minByOrNull { it.dateText }
+        // 重複を除外し、日付（昇順: 最古 -> 最新）でソート
+        return@withContext allCandidatePanos
+            .filter { it.panoId.isNotEmpty() && it.dateText.isNotEmpty() }
+            .distinctBy { it.panoId }
+            .sortedBy { it.dateText }
     }
 
-    private fun fetchFromOfficialMetadataApi(lat: Double, lng: Double, apiKey: String): PanoInfo? {
+    /**
+     * Pano ID を直接指定して CBK サービスから過去履歴を取得
+     */
+    private fun fetchFromCbkApiByPanoId(panoId: String): List<PanoInfo> {
+        val urlString = "https://cbk0.google.com/cbk?output=json&panoid=$panoId"
+        return executeCbkRequest(urlString)
+    }
+
+    /**
+     * 緯度経度を指定して CBK サービスから過去履歴を取得
+     */
+    private fun fetchAllFromCbkApiByLatLng(lat: Double, lng: Double): List<PanoInfo> {
+        val urlString = "https://cbk0.google.com/cbk?output=json&ll=$lat,$lng"
+        return executeCbkRequest(urlString)
+    }
+
+    private fun executeCbkRequest(urlString: String): List<PanoInfo> {
+        val list = mutableListOf<PanoInfo>()
         try {
-            val urlString = "https://maps.googleapis.com/maps/api/streetview/metadata?location=$lat,$lng&radius=500&key=$apiKey"
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 4000
+            connection.readTimeout = 4000
+
+            if (connection.responseCode == 200) {
+                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                if (responseText.isNotBlank()) {
+                    val json = JSONObject(responseText)
+                    list.addAll(extractAllPanosFromJson(json))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
+
+    private fun fetchLocationFromOfficialMetadataApi(lat: Double, lng: Double, apiKey: String): Triple<Double?, Double?, String?> {
+        try {
+            val urlString = "https://maps.googleapis.com/maps/api/streetview/metadata?location=$lat,$lng&radius=1000&key=$apiKey"
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -71,44 +126,23 @@ object HistoricalPanoHelper {
                     val status = json.optString("status")
                     if (status == "OK") {
                         val panoId = json.optString("pano_id")
-                        val date = json.optString("date")
-                        if (panoId.isNotEmpty()) {
-                            return PanoInfo(panoId, date.ifEmpty { "過去データ" })
-                        }
+                        val locationObj = json.optJSONObject("location")
+                        val resLat = locationObj?.optDouble("lat")
+                        val resLng = locationObj?.optDouble("lng")
+                        return Triple(resLat, resLng, panoId)
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        return null
+        return Triple(null, null, null)
     }
 
-    private fun fetchFromCbkApi(lat: Double, lng: Double): PanoInfo? {
-        try {
-            val urlString = "https://cbk0.google.com/cbk?output=json&ll=$lat,$lng"
-            val url = URL(urlString)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 4000
-            connection.readTimeout = 4000
-
-            if (connection.responseCode == 200) {
-                val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                if (responseText.isNotBlank()) {
-                    val json = JSONObject(responseText)
-                    return findOldestPanoFromJson(json)
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return null
-    }
-
-    private fun findOldestPanoFromJson(json: JSONObject): PanoInfo? {
+    private fun extractAllPanosFromJson(json: JSONObject): List<PanoInfo> {
         val list = mutableListOf<PanoInfo>()
 
+        // 1. Location オブジェクトからの現在/最寄りパノラマ情報
         val locationObj = json.optJSONObject("Location")
         val currentPanoId = locationObj?.optString("panoId")
         val currentDate = locationObj?.optString("original_date")
@@ -117,6 +151,7 @@ object HistoricalPanoHelper {
             list.add(PanoInfo(currentPanoId, currentDate))
         }
 
+        // 2. 過去のパノラマ配列 (Panos / Ancients / historical_panoramas)
         val panosArray = json.optJSONArray("Panos") ?: json.optJSONArray("Ancients")
         if (panosArray != null) {
             for (i in 0 until panosArray.length()) {
@@ -129,17 +164,18 @@ object HistoricalPanoHelper {
             }
         }
 
-        if (list.isEmpty()) {
-            val jsonString = json.toString()
-            val matcher = Pattern.compile("\"id\":\"([^\"]+)\"[^}]*\"date\":\"([^\"]+)\"").matcher(jsonString)
-            while (matcher.find()) {
-                val pId = matcher.group(1) ?: continue
-                val dText = matcher.group(2) ?: continue
+        // 3. Regex によるテキスト全体全探索（JSONの構造揺れ対策）
+        val jsonString = json.toString()
+        val matcher = Pattern.compile("\"(?:id|panoId)\":\"([^\"]+)\"[^}]*\"(?:date|original_date)\":\"([^\"]+)\"").matcher(jsonString)
+        while (matcher.find()) {
+            val pId = matcher.group(1) ?: continue
+            val dText = matcher.group(2) ?: continue
+            if (pId.length > 5 && dText.contains("-")) {
                 list.add(PanoInfo(pId, dText))
             }
         }
 
-        return list.distinctBy { it.panoId }.minByOrNull { it.dateText }
+        return list
     }
 
     private fun getApiKeyFromManifest(context: Context): String? {
