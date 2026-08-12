@@ -22,18 +22,41 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 3. **💾 加工写真のギャラリー・ダウンロード保存**:
    - AI 変換された美しい写真を、1タップでお手持ちのスマホの「写真/ギャラリー（`Pictures/GoogleMap_AI` フォルダ）」へ高画質保存。
 
-4. **🗺️ ミニマップからの自由スポット・ジャンプ**:
-   - 画面右下のミニマップをタップすると拡大地図が起動。
-   - 地図上の見たい場所を指でタップしてピン（📍）を立てるだけで、その場所のストリートビューへ一発ジャンプ！移動時は自動で連動が静止するため、ゆっくり写真鑑賞や AI 変換が楽しめます。
+4. **🗺️ ミニマップからの自由スポット・ジャンプ ＆ 地名検索**:
+   - 画面右下のミニマップをタップすると拡大地図ダイアログが起動。
+   - 地名・住所・施設名での検索バー機能 ＆ 地図上タップでのピン（📍）設置に対応。
+   - 今見ているストリートビューの現在地からそのまま位置の微調整が可能です。
 
 ---
 
-## 📋 動作環境要件
+## 📋 動作環境 ＆ 開発に必要なツール
 
-- **OS**: Android 14.0 (API レベル 34) 以上
-- **開発環境**: Android Studio (Jellyfish / Koala / Ladybug 以降推奨)
+- **ビルドツール（必須）**: **Android Studio** (Jellyfish / Koala / Ladybug 以降推奨)
+  > ⚠️ 本プロジェクトのビルド・実行には **Android Studio** が必要となります。事前に公式サイトよりインストールしてください。
+- **OS要件**: Android 14.0 (API レベル 34) 以上
 - **Java / JDK**: JDK 17 以上
 - **Gradle**: 8.x 以上
+
+---
+
+## 🤖 Antigravity を使った開発 ＆ 不明点の質問方法
+
+本プロジェクトは **Google Antigravity**（AI コーディングアシスタント）での開発に最適化されています。
+
+1. **Antigravity をインストール・起動**します。
+2. Antigravity 上で**本プロジェクトのルートフォルダを指定して開きます**。
+3. ビルドエラーの解決、設定方法、コードのカスタマイズ、動作仕様などの不明点があれば、**「〇〇のビルドの仕方を教えて」「〇〇の機能を変更したい」と直接 Antigravity に質問・指示**してください。AI がコードの調査・修正・ビルド確認まで全自動でアシストします。
+
+---
+
+## 💰 Google AI Studio の料金 ＆ 初回設定について
+
+AI 景色変換機能（Nano Banana / Interactions API）をご利用いただくにあたり、以下の費用・設定が必要となります。
+
+- **初回お支払い登録（デポジット）**:
+  - Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **約 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
+- **1回あたりの画像変換コスト**:
+  - 画像変換 1 回あたりにかかる費用は、およそ **約 1 円程度** です。（※ご利用頻度に応じて従量課金されます）
 
 ---
 
@@ -48,7 +71,7 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 
 ### 2. Google AI Studio API キーの取得 (`GEMINI_API_KEY`)
 1. [Google AI Studio (aistudio.google.com)](https://aistudio.google.com/) にアクセスします。
-2. 無料で利用可能な **「Get API Key」** ボタンを押して API キーを発行します。
+2. **「Get API Key」** から API キーを発行します。（※従量課金の有効化・初回支払い登録が必要です）
 
 ---
 
@@ -62,7 +85,7 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 # Android SDK のパス (お使いの環境に合わせて指定)
 sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
 
-# Google Maps API キー
+# Google Maps API キー (Maps SDK for Android 有効化済み)
 MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # Google AI Studio (Gemini / Nano Banana) API キー
@@ -75,8 +98,8 @@ GEMINI_API_KEY=AIzaSyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 
 ## 🚀 ビルド ＆ アプリの実行方法
 
-### 方式 A: Android Studio から実行する場合
-1. Android Studio で本プロジェクトフォルダを開きます。
+### 方式 A: Android Studio から実行する場合（推奨）
+1. **Android Studio** で本プロジェクトフォルダを開きます。
 2. Gradle Sync が完了するのをお待ちください。
 3. 実機 Android 端末（USB デバッグ有効化）またはエミュレータを接続します。
 4. 画面上部の **「Run 'app'」 (Shift + F10)** ボタンを押して実行します。
@@ -106,7 +129,7 @@ GEMINI_API_KEY=AIzaSyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 | **画面切り替え** | 画面ドラッグ操作でセンサー自動停止 |
 | **AI 景色変換** | 画面下の `✨ AI景色変換加工` ボタンをタップ |
 | **画像ダウンロード** | 変換完了画面下の `💾 このAI加工写真をダウンロード保存する` ボタンをタップ |
-| **スポット自由ジャンプ** | 右下のミニマップをタップ ➔ 地図上をタップしてピン選択 ➔ `📍 この場所へ移動する` |
+| **スポット自由ジャンプ・検索** | 右下のミニマップをタップ ➔ 地名検索または地図上タップでピン選択 ➔ `📍 この場所へ移動する` |
 
 ---
 
