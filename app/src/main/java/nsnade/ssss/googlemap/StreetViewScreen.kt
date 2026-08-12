@@ -931,7 +931,7 @@ private fun StreetViewMainContent(
                                     coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
                                         selectedMapLocation = targetLatLng
                                         pickedMarker?.position = targetLatLng
-                                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(targetLatLng, 16f))
+                                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(targetLatLng, 16f), 400, null)
                                         Toast.makeText(context, "📍 「$query」へ移動しました！", Toast.LENGTH_SHORT).show()
                                     }
                                 } else {
@@ -948,7 +948,7 @@ private fun StreetViewMainContent(
                                 val targetLatLng = LatLng(addr.latitude, addr.longitude)
                                 selectedMapLocation = targetLatLng
                                 pickedMarker?.position = targetLatLng
-                                map.animateCamera(CameraUpdateFactory.newLatLngZoom(targetLatLng, 16f))
+                                map.animateCamera(CameraUpdateFactory.newLatLngZoom(targetLatLng, 16f), 400, null)
                                 Toast.makeText(context, "📍 「$query」へ移動しました！", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "🔍 「$query」の場所が見つかりませんでした", Toast.LENGTH_SHORT).show()
@@ -971,9 +971,7 @@ private fun StreetViewMainContent(
                 },
                 text = {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1015,15 +1013,49 @@ private fun StreetViewMainContent(
                         ) {
                             AndroidView(
                                 modifier = Modifier.fillMaxSize(),
-                                factory = { pickerMapView }
+                                factory = {
+                                    pickerMapView.apply {
+                                        setOnTouchListener { v, event ->
+                                            when (event.action) {
+                                                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                                                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                                                }
+                                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                                                }
+                                            }
+                                            false
+                                        }
+                                    }
+                                }
                             )
+                        }
+
+                        // 🚀 MapView ライフサイクルの同期（画面の描画フレームレートを滑らかに保つ）
+                        DisposableEffect(pickerMapView) {
+                            pickerMapView.onStart()
+                            pickerMapView.onResume()
+                            onDispose {
+                                pickerMapView.onPause()
+                                pickerMapView.onStop()
+                                pickerMapView.onDestroy()
+                            }
                         }
 
                         LaunchedEffect(pickerMapView) {
                             pickerMapView.getMapAsync { map ->
                                 pickerMapInstance = map
-                                val startPos = currentLocation?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(35.681236, 139.767125)
+                                // 📍 GPS現在地ではなく、今表示しているストリートビューの最新座標を初期位置にする（微調整しやすさの改善）
+                                val startPos = streetViewPanorama?.location?.position
+                                    ?: lastSetPosition
+                                    ?: currentLocation?.let { LatLng(it.latitude, it.longitude) }
+                                    ?: LatLng(35.681236, 139.767125)
+                                
+                                // ⚡ 描画の軽量化と滑らかさの最適化
+                                map.isBuildingsEnabled = false
+                                map.isIndoorEnabled = false
                                 map.uiSettings.isZoomControlsEnabled = true
+                                map.uiSettings.isRotateGesturesEnabled = false // スムーズなスクロール操作のため回転を抑止
                                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(startPos, 16f))
 
                                 val initialMarker = map.addMarker(
@@ -1037,7 +1069,8 @@ private fun StreetViewMainContent(
                                 map.setOnMapClickListener { clickedLatLng ->
                                     selectedMapLocation = clickedLatLng
                                     pickedMarker?.position = clickedLatLng
-                                    map.animateCamera(CameraUpdateFactory.newLatLng(clickedLatLng))
+                                    // ⚡ 300msの超滑らか（スムーズ）なカメラ移動
+                                    map.animateCamera(CameraUpdateFactory.newLatLng(clickedLatLng), 300, null)
                                 }
                             }
                         }
