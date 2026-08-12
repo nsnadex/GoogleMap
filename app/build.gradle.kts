@@ -7,6 +7,7 @@ val localProperties = Properties().apply {
     }
 }
 val mapsApiKey = localProperties.getProperty("MAPS_API_KEY") ?: ""
+val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
 
 plugins {
     alias(libs.plugins.android.application)
@@ -30,6 +31,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        manifestPlaceholders["GEMINI_API_KEY"] = geminiApiKey
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {
@@ -45,10 +48,12 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
     implementation(platform(libs.androidx.compose.bom))

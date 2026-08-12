@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,8 +29,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -141,10 +145,15 @@ private fun StreetViewMainContent(
     var isTrackingEnabled by remember { mutableStateOf(true) }
     var isGestureCooldownActive by remember { mutableStateOf(false) }
 
-    // 全年代の過去パノラマ情報リスト
-    var selectedHistoricalInfo by remember { mutableStateOf<PanoInfo?>(null) }
-    var panoHistoryList by remember { mutableStateOf<List<PanoInfo>>(emptyList()) }
-    var isSearchingHistorical by remember { mutableStateOf(false) }
+    // AIスタイル変換の状態
+    var showAiDialog by remember { mutableStateOf(false) }
+    var aiPromptInput by remember { mutableStateOf("昭和30年代の日本のレトロな街並み風") }
+    var isGeneratingAiImage by remember { mutableStateOf(false) }
+    var generatedAiBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var full360PanoramaBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var inputParamBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var activeAiPromptText by remember { mutableStateOf<String?>(null) }
+    var errorMessageText by remember { mutableStateOf<String?>(null) }
 
     var streetViewPanorama by remember { mutableStateOf<StreetViewPanorama?>(null) }
     var panoramaAvailable by remember { mutableStateOf(true) }
@@ -167,7 +176,7 @@ private fun StreetViewMainContent(
         }
     }
 
-    // Google Maps アプリを現在地指定で開くヘルパー関数
+    // Google Maps アプリを起動する関数
     fun openGoogleMapsApp() {
         val lat = currentLocation?.latitude ?: 35.681236
         val lng = currentLocation?.longitude ?: 139.767125
@@ -190,7 +199,8 @@ private fun StreetViewMainContent(
     // 連動再開（リセット）処理の共通関数
     fun resumeTrackingWithCooldown() {
         isTrackingEnabled = true
-        selectedHistoricalInfo = null
+        generatedAiBitmap = null
+        activeAiPromptText = null
         isGestureCooldownActive = true
 
         val loc = currentLocation
@@ -213,7 +223,7 @@ private fun StreetViewMainContent(
         }
     }
 
-    // ライフサイクルの完全転送 (StreetView ＆ MiniMap)
+    // ライフサイクルの完全転送
     DisposableEffect(lifecycleOwner, streetViewPanoramaView, minimapView) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -263,8 +273,8 @@ private fun StreetViewMainContent(
                 requestCount++
                 if (location != null && location.links != null && location.links.isNotEmpty()) {
                     panoramaAvailable = true
-                    statusText = if (selectedHistoricalInfo != null) {
-                        "過去画像表示中 (${selectedHistoricalInfo?.dateText})"
+                    statusText = if (generatedAiBitmap != null) {
+                        "✨ AIスタイル変換表示中 ($activeAiPromptText)"
                     } else if (isTrackingEnabled) {
                         "連動中"
                     } else {
@@ -321,7 +331,7 @@ private fun StreetViewMainContent(
     }
 
     // GPS位置更新時の連動
-    LaunchedEffect(currentLocation, streetViewPanorama, googleMapInstance, minimapMarker, isTrackingEnabled, selectedHistoricalInfo) {
+    LaunchedEffect(currentLocation, streetViewPanorama, googleMapInstance, minimapMarker, isTrackingEnabled, generatedAiBitmap) {
         val loc = currentLocation
         if (loc != null) {
             val newLatLng = LatLng(loc.latitude, loc.longitude)
@@ -330,7 +340,7 @@ private fun StreetViewMainContent(
             minimapMarker?.position = newLatLng
 
             val panorama = streetViewPanorama
-            if (isTrackingEnabled && selectedHistoricalInfo == null && panorama != null) {
+            if (isTrackingEnabled && generatedAiBitmap == null && panorama != null) {
                 if (lastSetPosition == null || distanceBetween(lastSetPosition!!, newLatLng) > 2.0) {
                     lastSetPosition = newLatLng
                     panorama.setPosition(newLatLng, 500, StreetViewSource.OUTDOOR)
@@ -357,18 +367,154 @@ private fun StreetViewMainContent(
     val lat = currentLocation?.latitude ?: 35.681236
     val lng = currentLocation?.longitude ?: 139.767125
 
+    val presets = listOf(
+        "昭和30年代の日本のレトロな街並み風",
+        "1920年代 大正ロマン・モノクロセピア古写真風",
+        "2100年 サイバーパンク未来都市風",
+        "江戸時代の浮世絵・和風絵画調",
+        "水彩画・ファンタジーアニメの背景風"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
     ) {
-        // メインコンポーネント
+        // メイン 3D ストリートビュー
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { streetViewPanoramaView }
         )
 
-        if (!panoramaAvailable) {
+        // ✨ AI変換された静止画写真のフル画面鑑賞 ＆ 端末ダウンロード保存オーバーレイ
+        if (generatedAiBitmap != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(1000f)
+                    .background(Color.Black)
+            ) {
+                // 変換画像本体（高精細プレビュー）
+                Image(
+                    bitmap = generatedAiBitmap!!.asImageBitmap(),
+                    contentDescription = "AI Transformed Image Result",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // 綺麗に配置された上部コントロールバー（ノッチ・ステータスバー回避付き）
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                        .align(Alignment.TopCenter),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 左上: AIスタイル名バッジ
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xCC7B1FA2))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "✨ AIスタイル: ${activeAiPromptText?.take(14)}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    // 右上: 洗練された丸型「✖ 閉じる」ボタン
+                    Button(
+                        onClick = {
+                            generatedAiBitmap = null
+                            activeAiPromptText = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xCCFF1744)),
+                        shape = RoundedCornerShape(24.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                    ) {
+                        Text("✖ 閉じる", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                    }
+                }
+
+                // 下部アクションバー（💾 端末に保存/ダウンロード ボタン: ナビゲーションバー回避付き）
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = 24.dp, start = 20.dp, end = 20.dp)
+                        .align(Alignment.BottomCenter)
+                ) {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                AiImageTransformHelper.saveBitmapToGallery(
+                                    context = context,
+                                    bitmap = generatedAiBitmap!!,
+                                    promptName = activeAiPromptText ?: "AI"
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
+                    ) {
+                        Text(
+                            text = "💾 このAI加工写真をダウンロード保存する",
+                            color = Color(0xFF1B5E20),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // ✨ AI生成中の美しいローディング画面 (最前面 zIndex 指定)
+        if (isGeneratingAiImage) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(2000f)
+                    .background(Color.Black.copy(alpha = 0.82f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFD500F9),
+                        strokeWidth = 4.dp,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "✨ Google AI Studio (Nano Banana) で景色を生成加工中...",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "※AI生成には約15秒〜30秒かかります。そのままお待ちください。",
+                        color = Color.Yellow,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        if (!panoramaAvailable && generatedAiBitmap == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -392,109 +538,90 @@ private fun StreetViewMainContent(
             }
         }
 
-        // 過去画像モード表示中の通知バッジ
-        AnimatedVisibility(
-            visible = selectedHistoricalInfo != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFE65100))
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "📜 過去写真を表示中: ${selectedHistoricalInfo?.dateText} 撮影",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-            }
-        }
+    var showFullMapSelectionDialog by remember { mutableStateOf(false) }
+    var selectedMapLocation by remember { mutableStateOf<LatLng?>(null) }
 
-        // 右下: 2D ミニマップ
-        AnimatedVisibility(
-            visible = showMinimap,
-            enter = fadeIn(),
-            exit = fadeOut(),
+    // 右下: 2D ミニマップ
+    AnimatedVisibility(
+        visible = showMinimap,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(bottom = if (showMenuPanel) 240.dp else 24.dp, end = 16.dp)
+    ) {
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = if (showMenuPanel) 290.dp else 24.dp, end = 16.dp)
+                .size(130.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.Black)
+                .border(2.5.dp, Color.Yellow, RoundedCornerShape(18.dp))
+                .clickable { showFullMapSelectionDialog = true }
         ) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { minimapView }
+            )
             Box(
                 modifier = Modifier
-                    .size(130.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.Black)
-                    .border(2.5.dp, Color.Yellow, RoundedCornerShape(18.dp))
-                    .clickable { openGoogleMapsApp() }
+                    .fillMaxSize()
+                    .clickable { showFullMapSelectionDialog = true }
+            )
+        }
+    }
+
+        // 通常時の上部コントロールバー
+        if (generatedAiBitmap == null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                    .align(Alignment.TopCenter),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { minimapView }
-                )
+                AnimatedVisibility(
+                    visible = !isTrackingEnabled,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Button(
+                        onClick = { resumeTrackingWithCooldown() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "🔄 連動を再開",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                if (isTrackingEnabled) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { openGoogleMapsApp() }
-                )
-            }
-        }
-
-        // 上部コントロールバー
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp, start = 16.dp, end = 16.dp)
-                .align(Alignment.TopCenter),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AnimatedVisibility(
-                visible = !isTrackingEnabled || selectedHistoricalInfo != null,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Button(
-                    onClick = { resumeTrackingWithCooldown() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (showMenuPanel) Color.Yellow else Color.Black.copy(alpha = 0.8f))
+                        .clickable { showMenuPanel = !showMenuPanel }
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Text(
-                        text = "🔄 連動を再開",
-                        color = Color.White,
+                        text = if (showMenuPanel) "⚙️ 設定を隠す" else "⚙️ 設定・情報",
+                        color = if (showMenuPanel) Color.Black else Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
                 }
             }
-
-            if (isTrackingEnabled && selectedHistoricalInfo == null) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (showMenuPanel) Color.Yellow else Color.Black.copy(alpha = 0.8f))
-                    .clickable { showMenuPanel = !showMenuPanel }
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = if (showMenuPanel) "⚙️ 設定を隠す" else "⚙️ 設定・情報",
-                    color = if (showMenuPanel) Color.Black else Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-            }
         }
 
-        // 設定＆全年代タイムスリップ・ステータスパネル
+        // 設定＆AIスタイル変換コントロールパネル
         AnimatedVisibility(
             visible = showMenuPanel,
             enter = fadeIn(),
@@ -539,7 +666,6 @@ private fun StreetViewMainContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // メニュー内コントロールボタン群
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -603,77 +729,26 @@ private fun StreetViewMainContent(
                             Text(text = "📍 最新位置へ戻る", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        // ④ 過去年代の全探索ボタン
+                        // ④ ✨ AIでこの景色を変換加工ボタン
                         Button(
                             onClick = {
-                                coroutineScope.launch {
-                                    isSearchingHistorical = true
-                                    Toast.makeText(context, "現在地の全過去年代データを検索中...", Toast.LENGTH_SHORT).show()
-                                    val currentPanoId = streetViewPanorama?.location?.panoId
-                                    val history = HistoricalPanoHelper.fetchAllPanoHistory(context, lat, lng, currentPanoId)
-                                    isSearchingHistorical = false
-                                    panoHistoryList = history
-                                    if (history.isNotEmpty()) {
-                                        Toast.makeText(context, "${history.size}件の撮影年代データが見つかりました！", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "この場所には過去の撮影データが見つかりませんでした", Toast.LENGTH_SHORT).show()
-                                    }
+                                captureRealStreetViewPhoto(streetViewPanoramaView) { realPhoto ->
+                                    inputParamBitmap = realPhoto
+                                    showAiDialog = true
                                 }
                             },
-                            enabled = !isSearchingHistorical,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF673AB7),
+                                containerColor = Color(0xFF8E24AA),
                                 contentColor = Color.White
                             ),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
                         ) {
                             Text(
-                                text = if (isSearchingHistorical) "⏳ 検索中..." else "📜 過去年代を検索",
+                                text = "✨ AI景色変換加工",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
-                            )
-                        }
-                    }
-                }
-
-                // 全過去年代選択スライダー・チップ列（PC版タイムマシン機能）
-                if (panoHistoryList.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "📜 撮影年代を選択 (全${panoHistoryList.size}件):",
-                        color = Color.Yellow,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(panoHistoryList) { info ->
-                            val isSelected = selectedHistoricalInfo?.panoId == info.panoId
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedHistoricalInfo = info
-                                    streetViewPanorama?.setPosition(info.panoId)
-                                    Toast.makeText(context, "${info.dateText} のストリートビューに切り替えました", Toast.LENGTH_SHORT).show()
-                                },
-                                label = {
-                                    Text(
-                                        text = info.dateText,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.Black else Color.White
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = Color(0xFF424242),
-                                    selectedContainerColor = Color(0xFFFF9800)
-                                )
                             )
                         }
                     }
@@ -684,14 +759,14 @@ private fun StreetViewMainContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "連動モード: " + if (selectedHistoricalInfo != null) {
-                        "📜 過去写真モード (${selectedHistoricalInfo?.dateText})"
+                    text = "連動モード: " + if (generatedAiBitmap != null) {
+                        "✨ AIスタイル加工中 ($activeAiPromptText)"
                     } else if (isTrackingEnabled) {
                         "🔴 センサー連動中"
                     } else {
                         "⏸️ 手動操作中（連動停止中）"
                     },
-                    color = if (selectedHistoricalInfo != null) Color(0xFFFF9800) else if (isTrackingEnabled) Color.Green else Color.Yellow,
+                    color = if (generatedAiBitmap != null) Color(0xFFE040FB) else if (isTrackingEnabled) Color.Green else Color.Yellow,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -714,6 +789,256 @@ private fun StreetViewMainContent(
                     )
                 }
             }
+        }
+
+        // ✨ AIプロンプト変換入力モーダルダイアログ
+        if (showAiDialog) {
+            AlertDialog(
+                onDismissRequest = { showAiDialog = false },
+                title = {
+                    Text(
+                        text = "✨ Google AI Studio / AI 景色加工",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD500F9)
+                    )
+                },
+                text = {
+                    Column {
+                        // 📸 切り取ったストリートビュー景色のプレビュー表示
+                        if (inputParamBitmap != null) {
+                            Text(
+                                text = "📸 切り取り景色のプレビュー (縦横比維持):",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color(0xFF00E676)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF1A1A1A)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    bitmap = inputParamBitmap!!.asImageBitmap(),
+                                    contentDescription = "Cutout View Preview",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+
+                        Text(
+                            text = "現在のストリートビュー画面をAIでプロンプト通りのスタイル写真に変換加工します。",
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "🌟 人気のプロンプトプリセット:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color(0xFFFFAB00)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(presets) { preset ->
+                                FilterChip(
+                                    selected = aiPromptInput == preset,
+                                    onClick = { aiPromptInput = preset },
+                                    label = {
+                                        Text(text = preset, fontSize = 11.sp)
+                                    }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = aiPromptInput,
+                            onValueChange = { aiPromptInput = it },
+                            label = { Text("プロンプト（加工スタイル）を入力") },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 3
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showAiDialog = false
+                            coroutineScope.launch {
+                                generatedAiBitmap = null
+                                activeAiPromptText = null
+                                isGeneratingAiImage = true
+                                Toast.makeText(context, "✨ 今見ている景色をAIで変換加工中...", Toast.LENGTH_SHORT).show()
+
+                                coroutineScope.launch {
+                                    try {
+                                        val realBitmap = inputParamBitmap ?: createFallbackColorBitmap()
+                                        val result = AiImageTransformHelper.transformBitmapWithAiResult(
+                                            context = context,
+                                            sourceBitmap = realBitmap,
+                                            prompt = aiPromptInput
+                                        )
+                                        isGeneratingAiImage = false
+                                        when (result) {
+                                            is AiResult.Success -> {
+                                                generatedAiBitmap = result.bitmap
+                                                activeAiPromptText = "${result.usedModelName}: $aiPromptInput"
+                                                Toast.makeText(context, "✨ Google AI Studio (${result.usedModelName}) での変換が完了しました！", Toast.LENGTH_SHORT).show()
+                                            }
+                                            is AiResult.Error -> {
+                                                errorMessageText = result.message
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        isGeneratingAiImage = false
+                                        errorMessageText = "予期せぬエラーが発生しました:\n${e.localizedMessage ?: e.toString()}"
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFAA00FF))
+                    ) {
+                        Text("✨ 景色を変換加工する", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAiDialog = false }) {
+                        Text("キャンセル")
+                    }
+                }
+            )
+        }
+
+        // 🗺️ インタラクティブ・マップ選択ダイアログ (ミニマップタップで開く)
+        if (showFullMapSelectionDialog) {
+            var pickerMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
+            var pickedMarker by remember { mutableStateOf<Marker?>(null) }
+            val pickerMapView = remember {
+                MapView(context).apply { onCreate(Bundle()) }
+            }
+
+            AlertDialog(
+                onDismissRequest = { showFullMapSelectionDialog = false },
+                title = {
+                    Text(
+                        text = "🗺️ ストリートビュー移動スポットを選択",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1565C0)
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "地図上をタップしてピン（📍）を立て、移動ボタンを押すとその場所のストリートビューにジャンプします！",
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(320.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.DarkGray)
+                        ) {
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize(),
+                                factory = { pickerMapView }
+                            )
+                        }
+
+                        LaunchedEffect(pickerMapView) {
+                            pickerMapView.getMapAsync { map ->
+                                pickerMapInstance = map
+                                val startPos = currentLocation?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(35.681236, 139.767125)
+                                map.uiSettings.isZoomControlsEnabled = true
+                                map.moveCamera(CameraUpdateFactory.newLatLngZoom(startPos, 16f))
+
+                                val initialMarker = map.addMarker(
+                                    MarkerOptions()
+                                        .position(startPos)
+                                        .title("📍 選択中のスポット")
+                                )
+                                pickedMarker = initialMarker
+                                selectedMapLocation = startPos
+
+                                map.setOnMapClickListener { clickedLatLng ->
+                                    selectedMapLocation = clickedLatLng
+                                    pickedMarker?.position = clickedLatLng
+                                    map.animateCamera(CameraUpdateFactory.newLatLng(clickedLatLng))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val targetPos = selectedMapLocation
+                            if (targetPos != null && streetViewPanorama != null) {
+                                isTrackingEnabled = false // 📍 マップ移動時は自動的にセンサー連動を停止
+                                lastSetPosition = targetPos
+                                streetViewPanorama?.setPosition(targetPos, 500, StreetViewSource.OUTDOOR)
+                                generatedAiBitmap = null
+                                activeAiPromptText = null
+                                Toast.makeText(context, "📍 選択したスポットに移動しました (連動は停止中)", Toast.LENGTH_SHORT).show()
+                            }
+                            showFullMapSelectionDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
+                    ) {
+                        Text("📍 この場所へ移動する", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showFullMapSelectionDialog = false }) {
+                        Text("✖ 閉じる")
+                    }
+                }
+            )
+        }
+
+        // ⚠️ エラー詳細表示ダイアログ (高コントラスト・極めて読みやすいデザイン)
+        if (errorMessageText != null) {
+            AlertDialog(
+                onDismissRequest = { errorMessageText = null },
+                containerColor = Color(0xFF1E1E2C),
+                title = {
+                    Text(
+                        text = "⚠️ 処理エラー通知",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = Color(0xFFFF5252)
+                    )
+                },
+                text = {
+                    Text(
+                        text = errorMessageText!!,
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { errorMessageText = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF1744)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("OK (閉じる)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
         }
     }
 }
@@ -755,4 +1080,129 @@ private fun distanceBetween(point1: LatLng, point2: LatLng): Float {
         results
     )
     return results[0]
+}
+
+private fun captureRealStreetViewPhoto(view: android.view.View, onCaptured: (Bitmap) -> Unit) {
+    // 1. TextureView 探索（液晶画面に映っている本物のストリートビュー写真をそのままダイレクト取得！）
+    val textureView = findTextureView(view)
+    if (textureView != null) {
+        val w = if (view.width > 0) view.width else 640
+        val h = if (view.height > 0) view.height else 480
+        val bmp = textureView.getBitmap(w, h)
+        if (bmp != null) {
+            onCaptured(bmp)
+            return
+        }
+    }
+
+    // 2. SurfaceView 直接 PixelCopy
+    val surfaceView = findSurfaceView(view)
+    if (surfaceView != null && surfaceView.holder.surface.isValid) {
+        val w = if (surfaceView.width > 0) surfaceView.width else 640
+        val h = if (surfaceView.height > 0) surfaceView.height else 480
+        val surfaceBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        try {
+            android.view.PixelCopy.request(
+                surfaceView,
+                surfaceBitmap,
+                { result ->
+                    if (result == android.view.PixelCopy.SUCCESS) {
+                        onCaptured(surfaceBitmap)
+                    } else {
+                        val fallbackBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(fallbackBmp)
+                        view.draw(canvas)
+                        onCaptured(fallbackBmp)
+                    }
+                },
+                android.os.Handler(android.os.Looper.getMainLooper())
+            )
+            return
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // 3. Activity Window PixelCopy
+    val activity = view.context as? android.app.Activity
+    if (activity != null && view.width > 0 && view.height > 0) {
+        val pixelCopyBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        val location = IntArray(2)
+        view.getLocationInWindow(location)
+        val rect = android.graphics.Rect(
+            location[0],
+            location[1],
+            location[0] + view.width,
+            location[1] + view.height
+        )
+
+        try {
+            android.view.PixelCopy.request(
+                activity.window,
+                rect,
+                pixelCopyBitmap,
+                { result ->
+                    if (result == android.view.PixelCopy.SUCCESS) {
+                        onCaptured(pixelCopyBitmap)
+                    } else {
+                        val fallbackBitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(fallbackBitmap)
+                        view.draw(canvas)
+                        onCaptured(fallbackBitmap)
+                    }
+                },
+                android.os.Handler(android.os.Looper.getMainLooper())
+            )
+            return
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // 4. View.draw
+    val width = if (view.width > 0) view.width else 640
+    val height = if (view.height > 0) view.height else 480
+    val fallbackBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(fallbackBitmap)
+    view.draw(canvas)
+    onCaptured(fallbackBitmap)
+}
+
+private fun findTextureView(view: android.view.View): android.view.TextureView? {
+    if (view is android.view.TextureView) return view
+    if (view is android.view.ViewGroup) {
+        for (i in 0 until view.childCount) {
+            val child = findTextureView(view.getChildAt(i))
+            if (child != null) return child
+        }
+    }
+    return null
+}
+
+private fun findSurfaceView(view: android.view.View): android.view.SurfaceView? {
+    if (view is android.view.SurfaceView) return view
+    if (view is android.view.ViewGroup) {
+        for (i in 0 until view.childCount) {
+            val child = findSurfaceView(view.getChildAt(i))
+            if (child != null) return child
+        }
+    }
+    return null
+}
+
+private fun createFallbackColorBitmap(): Bitmap {
+    val width = 640
+    val height = 480
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val skyPaint = Paint().apply {
+        shader = android.graphics.LinearGradient(0f, 0f, 0f, height * 0.55f, android.graphics.Color.parseColor("#4FC3F7"), android.graphics.Color.parseColor("#E0F7FA"), android.graphics.Shader.TileMode.CLAMP)
+    }
+    canvas.drawRect(0f, 0f, width.toFloat(), height * 0.55f, skyPaint)
+
+    val groundPaint = Paint().apply {
+        shader = android.graphics.LinearGradient(0f, height * 0.55f, 0f, height.toFloat(), android.graphics.Color.parseColor("#81C784"), android.graphics.Color.parseColor("#388E3C"), android.graphics.Shader.TileMode.CLAMP)
+    }
+    canvas.drawRect(0f, height * 0.55f, width.toFloat(), height.toFloat(), groundPaint)
+    return bitmap
 }
