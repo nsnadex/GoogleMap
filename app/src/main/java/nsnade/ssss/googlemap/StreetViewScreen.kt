@@ -772,24 +772,6 @@ private fun StreetViewMainContent(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = "方位: ${bearing.roundToInt()}° / 見上げ角: ${tilt.roundToInt()}°",
-                    color = Color.White,
-                    fontSize = 12.sp
-                )
-                if (currentLocation != null) {
-                    Text(
-                        text = "現在地 緯度: %.5f / 経度: %.5f".format(lat, lng),
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
-                } else {
-                    Text(
-                        text = "GPS位置情報取得中...",
-                        color = Color.LightGray,
-                        fontSize = 12.sp
-                    )
-                }
             }
         }
 
