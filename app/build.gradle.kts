@@ -33,6 +33,7 @@ android {
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         manifestPlaceholders["GEMINI_API_KEY"] = geminiApiKey
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
     }
 
     buildTypes {

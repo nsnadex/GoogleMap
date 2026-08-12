@@ -24,6 +24,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -803,11 +805,15 @@ private fun StreetViewMainContent(
                     )
                 },
                 text = {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         // 📸 切り取ったストリートビュー景色のプレビュー表示
                         if (inputParamBitmap != null) {
                             Text(
-                                text = "📸 切り取り景色のプレビュー (縦横比維持):",
+                                text = "📸 切り取り景色のプレビュー:",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
                                 color = Color(0xFF00E676)
@@ -816,7 +822,7 @@ private fun StreetViewMainContent(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(160.dp)
+                                    .height(140.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color(0xFF1A1A1A)),
                                 contentAlignment = Alignment.Center
@@ -920,12 +926,56 @@ private fun StreetViewMainContent(
             )
         }
 
-        // 🗺️ インタラクティブ・マップ選択ダイアログ (ミニマップタップで開く)
+        // 🗺️ インタラクティブ・マップ選択ダイアログ (地名・住所検索機能付き)
         if (showFullMapSelectionDialog) {
             var pickerMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
             var pickedMarker by remember { mutableStateOf<Marker?>(null) }
+            var mapSearchQuery by remember { mutableStateOf("") }
             val pickerMapView = remember {
                 MapView(context).apply { onCreate(Bundle()) }
+            }
+
+            fun executeSearchLocation() {
+                val query = mapSearchQuery.trim()
+                val map = pickerMapInstance
+                if (query.isNotEmpty() && map != null) {
+                    try {
+                        val geocoder = android.location.Geocoder(context, java.util.Locale.JAPAN)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            geocoder.getFromLocationName(query, 1) { addresses ->
+                                if (addresses.isNotEmpty()) {
+                                    val addr = addresses[0]
+                                    val targetLatLng = LatLng(addr.latitude, addr.longitude)
+                                    coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                        selectedMapLocation = targetLatLng
+                                        pickedMarker?.position = targetLatLng
+                                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(targetLatLng, 16f))
+                                        Toast.makeText(context, "📍 「$query」へ移動しました！", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                        Toast.makeText(context, "🔍 「$query」の場所が見つかりませんでした", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        } else {
+                            @Suppress("DEPRECATION")
+                            val addresses = geocoder.getFromLocationName(query, 1)
+                            if (!addresses.isNullOrEmpty()) {
+                                val addr = addresses[0]
+                                val targetLatLng = LatLng(addr.latitude, addr.longitude)
+                                selectedMapLocation = targetLatLng
+                                pickedMarker?.position = targetLatLng
+                                map.animateCamera(CameraUpdateFactory.newLatLngZoom(targetLatLng, 16f))
+                                Toast.makeText(context, "📍 「$query」へ移動しました！", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "🔍 「$query」の場所が見つかりませんでした", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "❌ 検索エラーが発生しました", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
 
             AlertDialog(
@@ -938,16 +988,46 @@ private fun StreetViewMainContent(
                     )
                 },
                 text = {
-                    Column {
-                        Text(
-                            text = "地図上をタップしてピン（📍）を立て、移動ボタンを押すとその場所のストリートビューにジャンプします！",
-                            fontSize = 12.sp
-                        )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = mapSearchQuery,
+                                onValueChange = { mapSearchQuery = it },
+                                placeholder = { Text("地名・住所・施設名で検索", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Button(
+                                onClick = { executeSearchLocation() },
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
+                            ) {
+                                Text("🔍 検索", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "💡 検索または地図上をタップしてピン（📍）を立て、移動ボタンを押してください。",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(320.dp)
+                                .height(270.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.DarkGray)
                         ) {
