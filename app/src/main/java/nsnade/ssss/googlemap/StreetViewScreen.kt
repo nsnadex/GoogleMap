@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -404,7 +406,7 @@ private fun StreetViewMainContent(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // 綺麗に配置された上部コントロールバー（ノッチ・ステータスバー回避付き）
+                // 綺麗に配置された上部コントロールバー（白を基調とした洗練されたデザイン）
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -418,13 +420,14 @@ private fun StreetViewMainContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xCC7B1FA2))
+                            .background(Color.White.copy(alpha = 0.94f))
+                            .border(1.5.dp, Color(0xFFE1BEE7), RoundedCornerShape(20.dp))
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = "✨ AIスタイル: ${activeAiPromptText?.take(14)}",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF6A1B9A),
+                            fontWeight = FontWeight.ExtraBold,
                             fontSize = 12.sp
                         )
                     }
@@ -435,16 +438,19 @@ private fun StreetViewMainContent(
                             generatedAiBitmap = null
                             activeAiPromptText = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xCCFF1744)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFEBEE),
+                            contentColor = Color(0xFFC62828)
+                        ),
                         shape = RoundedCornerShape(24.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
                     ) {
-                        Text("✖ 閉じる", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                        Text("✖ 閉じる", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
 
-                // 下部アクションバー（💾 端末に保存/ダウンロード ボタン: ナビゲーションバー回避付き）
+                // 下部アクションバー (白を基調とした洗練されたフローティング保存ボタン)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -462,12 +468,23 @@ private fun StreetViewMainContent(
                                 )
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                        shape = RoundedCornerShape(28.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White.copy(alpha = 0.96f),
+                            contentColor = Color(0xFF1B5E20)
+                        ),
+                        shape = RoundedCornerShape(30.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
+                            .height(56.dp)
+                            .border(
+                                width = 2.dp,
+                                color = Color(0xFF00E676),
+                                shape = RoundedCornerShape(30.dp)
+                            ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 10.dp,
+                            pressedElevation = 4.dp
+                        )
                     ) {
                         Text(
                             text = "💾 このAI加工写真をダウンロード保存する",
@@ -609,21 +626,26 @@ private fun StreetViewMainContent(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (showMenuPanel) Color.Yellow else Color.Black.copy(alpha = 0.8f))
+                        .background(if (showMenuPanel) Color.White else Color.Black.copy(alpha = 0.8f))
+                        .border(
+                            width = 1.5.dp,
+                            color = if (showMenuPanel) Color(0xFF1E88E5) else Color.Transparent,
+                            shape = RoundedCornerShape(20.dp)
+                        )
                         .clickable { showMenuPanel = !showMenuPanel }
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Text(
                         text = if (showMenuPanel) "⚙️ 設定を隠す" else "⚙️ 設定・情報",
-                        color = if (showMenuPanel) Color.Black else Color.White,
-                        fontWeight = FontWeight.Bold,
+                        color = if (showMenuPanel) Color(0xFF1E88E5) else Color.White,
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = 12.sp
                     )
                 }
             }
         }
 
-        // 設定＆AIスタイル変換コントロールパネル
+        // 白を基調としたおしゃれな Glassmorphism コントロールパネル
         AnimatedVisibility(
             visible = showMenuPanel,
             enter = fadeIn(),
@@ -635,8 +657,9 @@ private fun StreetViewMainContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.92f))
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color.White.copy(alpha = 0.95f))
+                    .border(1.5.dp, Color(0xFFE3F2FD), RoundedCornerShape(22.dp))
                     .padding(16.dp)
             ) {
                 Row(
@@ -646,20 +669,20 @@ private fun StreetViewMainContent(
                 ) {
                     Text(
                         text = "⚙️ ストリートビュー設定",
-                        color = Color.Yellow,
-                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1A237E),
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp
                     )
 
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF1E88E5))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .background(Color(0xFFE3F2FD))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Text(
                             text = "📊 APIロード回数: ${requestCount} 回",
-                            color = Color.White,
+                            color = Color(0xFF1565C0),
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
@@ -686,16 +709,17 @@ private fun StreetViewMainContent(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isTrackingEnabled) Color(0xFFE53935) else Color(0xFF43A047)
+                                containerColor = if (isTrackingEnabled) Color(0xFFFFEBEE) else Color(0xFFE8F5E9),
+                                contentColor = if (isTrackingEnabled) Color(0xFFC62828) else Color(0xFF2E7D32)
                             ),
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
                                 text = if (isTrackingEnabled) "⏸️ センサー連動を停止" else "▶️ センサー連動を再開",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                fontWeight = FontWeight.Bold
                             )
                         }
 
@@ -703,16 +727,17 @@ private fun StreetViewMainContent(
                         Button(
                             onClick = { showMinimap = !showMinimap },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (showMinimap) Color(0xFF1565C0) else Color(0xFF616161)
+                                containerColor = if (showMinimap) Color(0xFFE8EAF6) else Color(0xFFF5F5F5),
+                                contentColor = if (showMinimap) Color(0xFF283593) else Color(0xFF616161)
                             ),
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
                                 text = if (showMinimap) "🗺️ ミニマップ: ON" else "🗺️ ミニマップ: OFF",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -724,9 +749,13 @@ private fun StreetViewMainContent(
                         // ③ 最新位置へ戻るボタン
                         Button(
                             onClick = { resumeTrackingWithCooldown() },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF1976D2),
+                                contentColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(text = "📍 最新位置へ戻る", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
@@ -744,46 +773,50 @@ private fun StreetViewMainContent(
                                 contentColor = Color.White
                             ),
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp)
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                         ) {
                             Text(
                                 text = "✨ AI景色変換加工",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = Color.Gray.copy(alpha = 0.5f))
+                HorizontalDivider(color = Color(0xFFE0E0E0))
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "連動モード: " + if (generatedAiBitmap != null) {
                         "✨ AIスタイル加工中 ($activeAiPromptText)"
                     } else if (isTrackingEnabled) {
-                        "🔴 センサー連動中"
+                        "🟢 センサー連動中"
                     } else {
                         "⏸️ 手動操作中（連動停止中）"
                     },
-                    color = if (generatedAiBitmap != null) Color(0xFFE040FB) else if (isTrackingEnabled) Color.Green else Color.Yellow,
+                    color = if (generatedAiBitmap != null) Color(0xFFAB47BC) else if (isTrackingEnabled) Color(0xFF2E7D32) else Color(0xFFE65100),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // ✨ AIプロンプト変換入力モーダルダイアログ
+        // ✨ AIプロンプト変換入力モーダルダイアログ (白を基調とした洗練されたデザイン)
         if (showAiDialog) {
             AlertDialog(
                 onDismissRequest = { showAiDialog = false },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(24.dp),
                 title = {
                     Text(
                         text = "✨ Google AI Studio / AI 景色加工",
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD500F9)
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF6A1B9A),
+                        fontSize = 16.sp
                     )
                 },
                 text = {
@@ -798,15 +831,16 @@ private fun StreetViewMainContent(
                                 text = "📸 切り取り景色のプレビュー:",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                color = Color(0xFF00E676)
+                                color = Color(0xFF2E7D32)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(140.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF1A1A1A)),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFF1F8E9))
+                                    .border(1.5.dp, Color(0xFF81C784), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
@@ -821,7 +855,8 @@ private fun StreetViewMainContent(
 
                         Text(
                             text = "現在のストリートビュー画面をAIでプロンプト通りのスタイル写真に変換加工します。",
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            color = Color(0xFF424242)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -829,7 +864,7 @@ private fun StreetViewMainContent(
                             text = "🌟 人気のプロンプトプリセット:",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
-                            color = Color(0xFFFFAB00)
+                            color = Color(0xFFE65100)
                         )
                         Spacer(modifier = Modifier.height(6.dp))
 
@@ -842,8 +877,24 @@ private fun StreetViewMainContent(
                                     selected = aiPromptInput == preset,
                                     onClick = { aiPromptInput = preset },
                                     label = {
-                                        Text(text = preset, fontSize = 11.sp)
-                                    }
+                                        Text(
+                                            text = preset,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (aiPromptInput == preset) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFFF3E5F5),
+                                        selectedLabelColor = Color(0xFF7B1FA2),
+                                        containerColor = Color(0xFFF5F5F5),
+                                        labelColor = Color(0xFF616161)
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = aiPromptInput == preset,
+                                        selectedBorderColor = Color(0xFFAB47BC),
+                                        borderColor = Color(0xFFE0E0E0)
+                                    )
                                 )
                             }
                         }
@@ -853,9 +904,18 @@ private fun StreetViewMainContent(
                         OutlinedTextField(
                             value = aiPromptInput,
                             onValueChange = { aiPromptInput = it },
-                            label = { Text("プロンプト（加工スタイル）を入力") },
+                            label = { Text("プロンプト（加工スタイル）を入力", color = Color(0xFF757575)) },
                             modifier = Modifier.fillMaxWidth(),
-                            maxLines = 3
+                            maxLines = 3,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color(0xFF212121),
+                                unfocusedTextColor = Color(0xFF212121),
+                                focusedBorderColor = Color(0xFF8E24AA),
+                                unfocusedBorderColor = Color(0xFFBDBDBD),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White
+                            )
                         )
                     }
                 },
@@ -895,20 +955,22 @@ private fun StreetViewMainContent(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFAA00FF))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8E24AA)),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
                     ) {
                         Text("✨ 景色を変換加工する", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showAiDialog = false }) {
-                        Text("キャンセル")
+                        Text("キャンセル", color = Color(0xFF757575), fontWeight = FontWeight.Medium)
                     }
                 }
             )
         }
 
-        // 🗺️ インタラクティブ・マップ選択ダイアログ (地名・住所検索機能付き)
+        // 🗺️ インタラクティブ・マップ選択ダイアログ (白を基調とした大画面フルスクリーンデザイン)
         if (showFullMapSelectionDialog) {
             var pickerMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
             var pickedMarker by remember { mutableStateOf<Marker?>(null) }
@@ -960,19 +1022,75 @@ private fun StreetViewMainContent(
                 }
             }
 
-            AlertDialog(
+            Dialog(
                 onDismissRequest = { showFullMapSelectionDialog = false },
-                title = {
-                    Text(
-                        text = "🗺️ ストリートビュー移動スポットを選択",
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1565C0)
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF121212))
+                ) {
+                    // 1. メイン領域: 全画面フルスクリーン Google Map
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = {
+                            pickerMapView.apply {
+                                setOnTouchListener { v, event ->
+                                    when (event.action) {
+                                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                                        }
+                                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                                        }
+                                    }
+                                    false
+                                }
+                            }
+                        }
                     )
-                },
-                text = {
+
+                    // 2. 上部固定コントロールパネル（白を基調としたおしゃれなヘッダー）
                     Column(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(12.dp)
+                            .align(Alignment.TopCenter)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.94f))
+                            .border(1.5.dp, Color(0xFFE3F2FD), RoundedCornerShape(20.dp))
+                            .padding(14.dp)
                     ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🗺️ ストリートビュー移動スポットを選択",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1565C0)
+                            )
+                            Button(
+                                onClick = { showFullMapSelectionDialog = false },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFFFEBEE),
+                                    contentColor = Color(0xFFC62828)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("✖ 閉じる", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -980,127 +1098,121 @@ private fun StreetViewMainContent(
                             OutlinedTextField(
                                 value = mapSearchQuery,
                                 onValueChange = { mapSearchQuery = it },
-                                placeholder = { Text("地名・住所・施設名で検索", fontSize = 11.sp) },
+                                placeholder = { Text("地名・住所・施設名で検索", fontSize = 11.sp, color = Color(0xFF757575)) },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color(0xFF212121),
+                                    unfocusedTextColor = Color(0xFF212121),
+                                    focusedBorderColor = Color(0xFF1976D2),
+                                    unfocusedBorderColor = Color(0xFFBDBDBD),
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White
+                                )
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Button(
                                 onClick = { executeSearchLocation() },
                                 shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
                             ) {
-                                Text("🔍 検索", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("🔍 検索", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "💡 検索または地図上をタップしてピン（📍）を立て、移動ボタンを押してください。",
-                            fontSize = 11.sp,
-                            color = Color.DarkGray
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Box(
+                    // 3. 下部固定アクションバー (白を基調とした洗練されたフローティングボタン)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(bottom = 24.dp, start = 20.dp, end = 20.dp)
+                            .align(Alignment.BottomCenter)
+                    ) {
+                        Button(
+                            onClick = {
+                                val targetPos = selectedMapLocation
+                                if (targetPos != null && streetViewPanorama != null) {
+                                    isTrackingEnabled = false
+                                    lastSetPosition = targetPos
+                                    streetViewPanorama?.setPosition(targetPos, 500, StreetViewSource.OUTDOOR)
+                                    generatedAiBitmap = null
+                                    activeAiPromptText = null
+                                    Toast.makeText(context, "📍 選択したスポットに移動しました (連動は停止中)", Toast.LENGTH_SHORT).show()
+                                }
+                                showFullMapSelectionDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White.copy(alpha = 0.96f),
+                                contentColor = Color(0xFF1B5E20)
+                            ),
+                            shape = RoundedCornerShape(30.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(270.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color.DarkGray)
+                                .height(56.dp)
+                                .border(
+                                    width = 2.dp,
+                                    color = Color(0xFF00E676),
+                                    shape = RoundedCornerShape(30.dp)
+                                ),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = 10.dp,
+                                pressedElevation = 4.dp
+                            )
                         ) {
-                            AndroidView(
-                                modifier = Modifier.fillMaxSize(),
-                                factory = {
-                                    pickerMapView.apply {
-                                        setOnTouchListener { v, event ->
-                                            when (event.action) {
-                                                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                                                    v.parent?.requestDisallowInterceptTouchEvent(true)
-                                                }
-                                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                                    v.parent?.requestDisallowInterceptTouchEvent(false)
-                                                }
-                                            }
-                                            false
-                                        }
-                                    }
-                                }
+                            Text(
+                                text = "📍 この場所へ移動する",
+                                color = Color(0xFF1B5E20),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp
                             )
                         }
+                    }
 
-                        // 🚀 MapView ライフサイクルの同期（画面の描画フレームレートを滑らかに保つ）
-                        DisposableEffect(pickerMapView) {
-                            pickerMapView.onStart()
-                            pickerMapView.onResume()
-                            onDispose {
-                                pickerMapView.onPause()
-                                pickerMapView.onStop()
-                                pickerMapView.onDestroy()
-                            }
-                        }
-
-                        LaunchedEffect(pickerMapView) {
-                            pickerMapView.getMapAsync { map ->
-                                pickerMapInstance = map
-                                // 📍 GPS現在地ではなく、今表示しているストリートビューの最新座標を初期位置にする（微調整しやすさの改善）
-                                val startPos = streetViewPanorama?.location?.position
-                                    ?: lastSetPosition
-                                    ?: currentLocation?.let { LatLng(it.latitude, it.longitude) }
-                                    ?: LatLng(35.681236, 139.767125)
-                                
-                                // ⚡ 描画の軽量化と滑らかさの最適化
-                                map.isBuildingsEnabled = false
-                                map.isIndoorEnabled = false
-                                map.uiSettings.isZoomControlsEnabled = true
-                                map.uiSettings.isRotateGesturesEnabled = false // スムーズなスクロール操作のため回転を抑止
-                                map.moveCamera(CameraUpdateFactory.newLatLngZoom(startPos, 16f))
-
-                                val initialMarker = map.addMarker(
-                                    MarkerOptions()
-                                        .position(startPos)
-                                        .title("📍 選択中のスポット")
-                                )
-                                pickedMarker = initialMarker
-                                selectedMapLocation = startPos
-
-                                map.setOnMapClickListener { clickedLatLng ->
-                                    selectedMapLocation = clickedLatLng
-                                    pickedMarker?.position = clickedLatLng
-                                    // ⚡ 300msの超滑らか（スムーズ）なカメラ移動
-                                    map.animateCamera(CameraUpdateFactory.newLatLng(clickedLatLng), 300, null)
-                                }
-                            }
+                    // 🚀 MapView ライフサイクルの同期
+                    DisposableEffect(pickerMapView) {
+                        pickerMapView.onStart()
+                        pickerMapView.onResume()
+                        onDispose {
+                            pickerMapView.onPause()
+                            pickerMapView.onStop()
+                            pickerMapView.onDestroy()
                         }
                     }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val targetPos = selectedMapLocation
-                            if (targetPos != null && streetViewPanorama != null) {
-                                isTrackingEnabled = false // 📍 マップ移動時は自動的にセンサー連動を停止
-                                lastSetPosition = targetPos
-                                streetViewPanorama?.setPosition(targetPos, 500, StreetViewSource.OUTDOOR)
-                                generatedAiBitmap = null
-                                activeAiPromptText = null
-                                Toast.makeText(context, "📍 選択したスポットに移動しました (連動は停止中)", Toast.LENGTH_SHORT).show()
+
+                    LaunchedEffect(pickerMapView) {
+                        pickerMapView.getMapAsync { map ->
+                            pickerMapInstance = map
+                            val startPos = streetViewPanorama?.location?.position
+                                ?: lastSetPosition
+                                ?: currentLocation?.let { LatLng(it.latitude, it.longitude) }
+                                ?: LatLng(35.681236, 139.767125)
+                            
+                            map.isBuildingsEnabled = false
+                            map.isIndoorEnabled = false
+                            map.uiSettings.isZoomControlsEnabled = true
+                            map.uiSettings.isRotateGesturesEnabled = false
+                            map.moveCamera(CameraUpdateFactory.newLatLngZoom(startPos, 16f))
+
+                            val initialMarker = map.addMarker(
+                                MarkerOptions()
+                                    .position(startPos)
+                                    .title("📍 選択中のスポット")
+                            )
+                            pickedMarker = initialMarker
+                            selectedMapLocation = startPos
+
+                            map.setOnMapClickListener { clickedLatLng ->
+                                selectedMapLocation = clickedLatLng
+                                pickedMarker?.position = clickedLatLng
+                                map.animateCamera(CameraUpdateFactory.newLatLng(clickedLatLng), 300, null)
                             }
-                            showFullMapSelectionDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
-                    ) {
-                        Text("📍 この場所へ移動する", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showFullMapSelectionDialog = false }) {
-                        Text("✖ 閉じる")
+                        }
                     }
                 }
-            )
+            }
         }
 
         // ⚠️ エラー詳細表示ダイアログ (高コントラスト・極めて読みやすいデザイン)

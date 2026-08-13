@@ -49,14 +49,17 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 
 ---
 
-## 💰 Google AI Studio の料金 ＆ 初回設定について
+## 💰 API 利用料金 ＆ Google Cloud 課金について
 
-AI 景色変換機能（Nano Banana / Interactions API）をご利用いただくにあたり、以下の費用・設定が必要となります。
+本アプリで利用する API（Google Maps API ＆ Google AI Studio）は、**Google Cloud Platform** 上で提供されています。ご利用にあたり以下の点をご確認ください。
 
-- **初回お支払い登録（デポジット）**:
-  - Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **約 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
-- **1回あたりの画像変換コスト**:
-  - 画像変換 1 回あたりにかかる費用は、およそ **約 1 円程度** です。（※ご利用頻度に応じて従量課金されます）
+### 1. Google Maps API の利用 ＆ 課金について
+- **Google Cloud の利用必須**: Google Maps API（Maps SDK for Android）を利用するためには、[Google Cloud Console](https://console.cloud.google.com/) でのアカウント作成および支払い登録（Cloud 課金アカウントの有効化）が必要となります。
+- **課金の可能性**: Google Cloud には毎月約 $200 相当の無料枠（数万回分のリクエスト）が提供されているため一般的な使用では実質無料で収まりますが、**利用頻度やリクエスト数に応じてわずかに課金（従量課金）が発生する可能性があります**。
+
+### 2. Google AI Studio (Gemini / Nano Banana) の料金について
+- **初回お支払い登録（デポジット）**: Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **約 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
+- **1回あたりの画像変換コスト**: AI 画像変換 1 回あたりにかかる費用は、およそ **約 1 円程度** です。（※ご利用頻度に応じて従量課金されます）
 
 ---
 
