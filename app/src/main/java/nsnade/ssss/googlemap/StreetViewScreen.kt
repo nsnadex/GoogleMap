@@ -664,7 +664,7 @@ private fun StreetViewMainContent(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -673,20 +673,6 @@ private fun StreetViewMainContent(
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp
                     )
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE3F2FD))
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = "📊 APIロード回数: ${requestCount} 回",
-                            color = Color(0xFF1565C0),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
