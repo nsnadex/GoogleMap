@@ -66,7 +66,7 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 - **課金の可能性**: Google Cloud には毎月約 $200 相当の無料枠（数万回分のリクエスト）が提供されているため一般的な使用では実質無料で収まりますが、**利用頻度やリクエスト数に応じてわずかに課金（従量課金）が発生する可能性があります**。
 
 ### 2. Google AI Studio (Gemini / Nano Banana) の料金について
-- **初回お支払い登録（デポジット）**: Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **约 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
+- **初回お支払い登録（デポジット）**: Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **約 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
 - **1回あたりの画像変換コスト**: AI 画像変換 1 回あたりにかかる費用は、およそ **約 1 円程度** です。（※ご利用頻度に応じて従量課金されます）
 
 ---
@@ -147,3 +147,11 @@ GEMINI_API_KEY=AIzaSyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 ## 📄 ライセンス ＆ クレジット
 - **Google Maps SDK for Android**: © Google LLC
 - **Google AI Studio (Gemini Interactions API / Nano Banana)**: © Google LLC
+
+---
+
+## ⚠️ 免責事項 (Disclaimer)
+
+- 本アプリケーションはオープンソース成果物として「現状のまま（As-Is）」提供されます。
+- 本アプリの利用、および Google Maps API / Google AI Studio の API キー利用に伴って発生するいかなる費用・課金・損害・トラブルについても、開発者および制作者は一切の責任を負いかねます。API キーの管理・利用設定はご利用者ご自身の責任にて行なってください。
+- センサー連動機能やストリートビュー機能をご利用の際は、周囲の安全に十分配慮し、歩行中や危険な場所でのスマホの注視・操作はお控えください。
