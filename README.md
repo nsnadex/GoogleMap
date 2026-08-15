@@ -4,6 +4,14 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 
 ---
 
+## 🎬 アプリ動作デモ動画 (YouTube Shorts)
+
+[![Google Map AI Demo](https://img.youtube.com/vi/L2Y7zD4Zuac/hqdefault.jpg)](https://www.youtube.com/shorts/L2Y7zD4Zuac)
+
+> ▶️ **[YouTube Shorts で実際のアプリ動く様子を見る](https://www.youtube.com/shorts/L2Y7zD4Zuac)** (`https://www.youtube.com/shorts/L2Y7zD4Zuac`)
+
+---
+
 ## 🌟 主な機能と特徴
 
 1. **リアルタイム・ストリートビュー探訪**:
@@ -58,7 +66,7 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 - **課金の可能性**: Google Cloud には毎月約 $200 相当の無料枠（数万回分のリクエスト）が提供されているため一般的な使用では実質無料で収まりますが、**利用頻度やリクエスト数に応じてわずかに課金（従量課金）が発生する可能性があります**。
 
 ### 2. Google AI Studio (Gemini / Nano Banana) の料金について
-- **初回お支払い登録（デポジット）**: Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **約 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
+- **初回お支払い登録（デポジット）**: Google AI Studio で API キーを発行して画像生成機能を利用する場合、初回に **约 2,000 円（$10~$15 前後）の支払い登録（Google Cloud 従量課金設定）** が必要となります。
 - **1回あたりの画像変換コスト**: AI 画像変換 1 回あたりにかかる費用は、およそ **約 1 円程度** です。（※ご利用頻度に応じて従量課金されます）
 
 ---
