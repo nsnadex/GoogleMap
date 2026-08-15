@@ -1,0 +1,13 @@
+## local.properties.example
+## このファイルを 'local.properties' に複製・リネームし、ご自身の API キーを記述してください。
+
+# Android SDK のパス (お使いの環境に合わせて変更してください)
+# Windows 例: sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
+# macOS 例:   sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk
+sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
+
+# Google Maps API キー (Maps SDK for Android 有効化済み)
+MAPS_API_KEY=AIzaSyYOUR_GOOGLE_MAPS_API_KEY_HERE
+
+# Google AI Studio (Gemini / Nano Banana) API キー
+GEMINI_API_KEY=AIzaSyYOUR_GOOGLE_AI_STUDIO_API_KEY_HERE

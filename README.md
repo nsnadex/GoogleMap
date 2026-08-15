@@ -86,9 +86,19 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 
 ---
 
-## 📝 設定ファイル (`local.properties`) の編集
+## 📝 設定ファイル (`local.properties`) の作成と編集
 
-プロジェクトのルートディレクトリにある `local.properties` ファイルを開き（存在しない場合は新規作成）、取得した 2つの API キーを以下のように記述して保存します。
+1. プロジェクトのルート直下にあるテンプレートファイル **`local.properties.example`** を複製し、ファイル名を **`local.properties`** に変更します。
+   - Windows (Command Prompt / PowerShell):
+     ```powershell
+     copy local.properties.example local.properties
+     ```
+   - macOS / Linux:
+     ```bash
+     cp local.properties.example local.properties
+     ```
+
+2. 作成した `local.properties` ファイルを開き、取得した 2つの API キーおよび Android SDK のパスを記述して保存します。
 
 ```properties
 ## local.properties (プロジェクトルート直下)
@@ -103,7 +113,7 @@ MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 GEMINI_API_KEY=AIzaSyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 ```
 
-> ⚠️ **注意**: `local.properties` は API キー等の個人秘密情報を含むため、Git 等のバージョン管理システムにはコミットしないでください（`.gitignore` に含まれています）。
+> ⚠️ **注意**: `local.properties` は API キー等の個人秘密情報を含むため、Git 等のバージョン管理システムにはコミットされません（`.gitignore` に登録されています）。代わりにテンプレートファイル `local.properties.example` が Git で管理されています。
 
 ---
 
