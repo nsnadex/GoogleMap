@@ -107,10 +107,10 @@ Android 端末のセンサーと **Google Maps StreetView**、そして **Google
 sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
 
 # Google Maps API キー (Maps SDK for Android 有効化済み)
-MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY_HERE
 
 # Google AI Studio (Gemini / Nano Banana) API キー
-GEMINI_API_KEY=AIzaSyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+GEMINI_API_KEY=YOUR_GOOGLE_AI_STUDIO_API_KEY_HERE
 ```
 
 > ⚠️ **注意**: `local.properties` は API キー等の個人秘密情報を含むため、Git 等のバージョン管理システムにはコミットされません（`.gitignore` に登録されています）。代わりにテンプレートファイル `local.properties.example` が Git で管理されています。
